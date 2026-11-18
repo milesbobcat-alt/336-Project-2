@@ -165,4 +165,5 @@ BEGIN
 END;
 $$;
 
-\copy hmda_reconstructed_export TO 'hmda_reconstructed.csv' WITH (FORMAT CSV, HEADER TRUE, NULL '');
+\copy (SELECT * FROM hmda_reconstructed_export) TO 'hmda_reconstructed.csv' WITH (FORMAT CSV, HEADER TRUE, NULL '');
+
