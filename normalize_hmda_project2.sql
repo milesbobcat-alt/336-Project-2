@@ -366,7 +366,7 @@ BEGIN
         SELECT 1
         FROM preliminary
         WHERE edit_status IS NOT NULL
-           OR edit_status_name IS NOT NULL
+           OR NULLIF(edit_status_name, '') IS NOT NULL
            OR application_date_indicator IS NOT NULL
     ) THEN
         RAISE EXCEPTION
