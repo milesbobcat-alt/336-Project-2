@@ -1,0 +1,199 @@
+Part - 1
+a-> 
+MSAMD
+msamd (PK)
+msamd_name
+
+b -> applicant_race_1, applicant_race_2, ..., applicant_race_5 
+     co_applicant_race_1, co_applicant_race_2, ..., co_applicant_race_5
+     denial_reason_1, denial_reason_2, denial_reason_3
+maybe we could store each of the above repeating values as a separate row (not sure)
+
+c -> ACTION_TYPE (trivial)
+Rename to ACTION_TAKEN to match column names and SQL.
+
+d -> names to lookup tables 
+LOAN_DETAILS
+- sequence_number (PK, FK)
+- loan_type (FK)
+- loan_purpose (FK)
+- property_type (FK)
+- purchaser_type (FK)
+- owner_occupancy (FK)
+- loan_amount_000s
+- rate_spread
+- hoepa_status (FK)
+- lien_status (FK)
+
+LOAN_TYPE
+loan_type (PK)
+loan_type_name
+
+OWNER_OCCUPANCY
+owner_occupancy (PK)
+owner_occupancy_name
+
+HOEPA_STATUS
+hoepa_status (PK)
+hoepa_status_name
+
+LIEN_STATUS
+lien_status (PK)
+lien_status_name
+
+e -> APPLICANT_DEMOGRAPHICS and CO_APPLICANT_DEMOGRAPHICS (repeating race columns into the two separate child tables) 
+APPLICANT_ETHNICITY
+applicant_ethnicity (PK)
+applicant_ethnicity_name
+
+APPLICANT_SEX
+applicant_sex (PK)
+applicant_sex_name
+
+CO_APPLICANT_ETHNICITY
+co_applicant_ethnicity (PK)
+co_applicant_ethnicity_name
+
+CO_APPLICANT_SEX
+co_applicant_sex (PK)
+co_applicant_sex_name
+
+f -> DENIAL_REASONS 
+DENIAL_REASON
+sequence_number (PK, FK)
+denial_reason_num (PK)
+denial_reason (FK)
+
+DENIAL_REASON_LOOKUP
+denial_reason (PK)
+denial_reason_name
+
+g -> code-to-name dependency (could have their own lookup tables)
+LOAN_TYPE
+loan_type (PK)
+loan_type_name
+
+PROPERTY_TYPE
+property_type (PK)
+property_type_name
+
+LOAN_PURPOSE
+loan_purpose (PK)
+loan_purpose_name
+
+h-> NUll only fields 
+NULL_ONLY_FIELDS
+
+PART - 4
+1) no invalid info inserted 
+2) no duplicate values 
+3) Null value (col not null in real data cannot be null) 
+
+all tables -> \dt
+col and constraints of each table -> \d APPLICATION_RECORD
+
+checking data types and null setting -> 
+SELECT
+    table_name,
+    column_name,
+    data_type,
+    is_nullable,
+    column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+ORDER BY table_name, ordinal_position;
+
+checking primary key and foreign key -> 
+SELECT
+    conrelid::regclass AS table_name,
+    conname AS constraint_name,
+    contype AS constraint_type,
+    pg_get_constraintdef(oid) AS definition
+FROM pg_constraint
+WHERE connamespace = 'public'::regnamespace
+ORDER BY table_name, constraint_type;
+
+to know null values -> 
+SELECT COUNT(*) FROM preliminary;
+SELECT
+    format(
+        'SELECT %L AS column_name,
+         COUNT(*) FILTER (WHERE %I IS NULL) AS null_count
+         FROM preliminary;',
+        column_name,
+        column_name
+    )
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'preliminary'
+ORDER BY ordinal_position;
+
+adding constraints -> 1) primary key 
+ALTER TABLE APPLICATION_RECORD
+ADD CONSTRAINT application_record_pk
+PRIMARY KEY (sequence_number);
+
+2) Foreign keys
+ALTER TABLE APPLICATION_RECORD
+ADD CONSTRAINT application_property_type_fk
+FOREIGN KEY (property_type)
+REFERENCES PROPERTY_TYPE(property_type);
+
+3) NOT NULL 
+ALTER TABLE APPLICATION_RECORD
+ALTER COLUMN respondent_id SET NOT NULL;
+
+4) insertion test video 
+5) csv with original value and col (may be not row order)
+reconstructing table ->  
+SELECT
+    a.sequence_number,
+    a.property_type,
+    p.property_type_name
+FROM APPLICATION_RECORD a
+LEFT JOIN PROPERTY_TYPE p
+    ON a.property_type = p.property_type;   (rejoining the data to create the csv, col names can change based on the part 3 output)
+
+if removed columns such as 
+applicant_race_1
+applicant_race_2
+applicant_race_3
+
+conditional aggregation 
+MAX(race) FILTER (WHERE race_number = 1)
+    AS applicant_race_1,
+
+MAX(race) FILTER (WHERE race_number = 2)
+    AS applicant_race_2,
+
+MAX(race) FILTER (WHERE race_number = 3)
+    AS applicant_race_3
+
+location information -> main application table to contain only the location ID rather than all the location columns 
+SELECT
+    a.sequence_number,
+    l.county_code,
+    l.msamd,
+    l.state_code,
+    l.census_tract_number,
+    l.population,
+    l.minority_population
+FROM APPLICATION_RECORD a
+LEFT JOIN LOCATION l
+    ON a.locationID = l.locationID;
+
+exporting the data 
+\copy (
+    SELECT ...
+) TO 'hmda_reconstructed.csv'
+WITH (FORMAT CSV, HEADER TRUE);
+
+7) -> comapre original HDMA csv to generated csv 
+screenshot of reconstructed CSV opened in a spreadsheet program.
+
+8) CHECKING RECONSTRUCTED TABLE 
+SELECT COUNT(*)
+FROM (
+    -- Complete reconstruction SELECT query
+) AS reconstructed;
+
