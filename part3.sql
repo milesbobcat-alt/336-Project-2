@@ -1,6 +1,8 @@
 \set ON_ERROR_STOP on
 BEGIN;
 
+-- respondent_id has conflicting agency_code values in the source CSV, so the
+-- observed data does not satisfy respondent_id -> agency_code.
 CREATE TABLE p2_location (
     location_id SERIAL PRIMARY KEY,
     county_code INTEGER,
@@ -34,41 +36,23 @@ ADD COLUMN location_id INTEGER REFERENCES p2_location(location_id);
 UPDATE p2_application AS a
 SET location_id = l.location_id
 FROM p2_location AS l
-WHERE concat(a.county_code, '|', a.msamd, '|', a.state_code, '|',
-             a.census_tract_number, '|', a.population, '|',
-             a.minority_population, '|', a.hud_median_family_income, '|',
-             a.tract_to_msamd_income, '|', a.number_of_owner_occupied_units, '|',
-             a.number_of_1_to_4_family_units)
-    = concat(l.county_code, '|', l.msamd, '|', l.state_code, '|',
-             l.census_tract_number, '|', l.population, '|',
-             l.minority_population, '|', l.hud_median_family_income, '|',
-             l.tract_to_msamd_income, '|', l.number_of_owner_occupied_units, '|',
-             l.number_of_1_to_4_family_units);
+WHERE a.county_code IS NOT DISTINCT FROM l.county_code
+  AND a.msamd IS NOT DISTINCT FROM l.msamd
+  AND a.state_code IS NOT DISTINCT FROM l.state_code
+  AND a.census_tract_number IS NOT DISTINCT FROM l.census_tract_number
+  AND a.population IS NOT DISTINCT FROM l.population
+  AND a.minority_population IS NOT DISTINCT FROM l.minority_population
+  AND a.hud_median_family_income
+      IS NOT DISTINCT FROM l.hud_median_family_income
+  AND a.tract_to_msamd_income
+      IS NOT DISTINCT FROM l.tract_to_msamd_income
+  AND a.number_of_owner_occupied_units
+      IS NOT DISTINCT FROM l.number_of_owner_occupied_units
+  AND a.number_of_1_to_4_family_units
+      IS NOT DISTINCT FROM l.number_of_1_to_4_family_units;
 
 ALTER TABLE p2_application
 ALTER COLUMN location_id SET NOT NULL;
-
-CREATE TEMP TABLE part3_percentages ON COMMIT DROP AS
-SELECT DISTINCT
-    NULLIF(minority_population, '')::numeric AS minority_population,
-    NULLIF(tract_to_msamd_income, '')::numeric AS tract_to_msamd_income
-FROM preliminary_raw;
-
-UPDATE p2_location AS l
-SET minority_population = (
-    SELECT DISTINCT r.minority_population
-    FROM part3_percentages AS r
-    WHERE round(r.minority_population, 2) = l.minority_population
-)
-WHERE l.minority_population IS NOT NULL;
-
-UPDATE p2_location AS l
-SET tract_to_msamd_income = (
-    SELECT DISTINCT r.tract_to_msamd_income
-    FROM part3_percentages AS r
-    WHERE round(r.tract_to_msamd_income, 2) = l.tract_to_msamd_income
-)
-WHERE l.tract_to_msamd_income IS NOT NULL;
 
 CREATE TABLE p2_application_race (
     sequence_number INTEGER REFERENCES p2_application(sequence_number),

@@ -1,17 +1,17 @@
 
 Primary Key & Entity Dependencies
 
-• {sequence_number} -> {as_of_year, respondent_id, loan_type, property_type, loan_purpose, owner_occupancy, loan_amount_000s, preapproval, action_taken, locationID, applicant_ethnicity, co_applicant_ethnicity, applicant_sex, co_applicant_sex, applicant_income_000s, purchaser_type, rate_spread, hoepa_status, lien_status, edit_status, application_date_indicator}
-• {respondent_id} -> {agency_code}
+• {sequence_number} -> {as_of_year, respondent_id, agency_code, loan_type, property_type, loan_purpose, owner_occupancy, loan_amount_000s, preapproval, action_taken, location_id, applicant_ethnicity, co_applicant_ethnicity, applicant_sex, co_applicant_sex, applicant_income_000s, purchaser_type, rate_spread, hoepa_status, lien_status, edit_status, application_date_indicator}
+// Source-data check: respondent_id has multiple agency_code values in this CSV, so it is not a determinant here.
 • {sequence_number, applicant_race_num} -> {applicant_race}
 • {sequence_number, co_applicant_race_num} -> {co_applicant_race}
 • {sequence_number, denial_reason_num} -> {denial_reason}
 
 Geographic / Location Dependencies
 
-• {locationID} -> {msamd, state_code, county_code, census_tract_number, population, minority_population, hud_median_family_income, tract_to_msamd_income, number_of_owner_occupied_units, number_of_1_to_4_family_units}
+• {location_id} -> {msamd, state_code, county_code, census_tract_number, population, minority_population, hud_median_family_income, tract_to_msamd_income, number_of_owner_occupied_units, number_of_1_to_4_family_units}
 • {state_code} -> {state_name, state_abbr}
-• {county_code} -> {county_name, state_code} //might be wrong
+• {state_code, county_code} -> {county_name} //county codes are state-scoped
 • {msamd} -> {msamd_name}
 
 Code-to-Name Lookup Dependencies

@@ -1,16 +1,29 @@
 -- Project 2: move name-dependent values out of the application table.
--- Run after Project 1/preliminary_upload.sql has populated preliminary.
+-- Run after this folder's preliminary_upload.sql has populated preliminary.
 -- preliminary_upload.sql remains a separate input/staging script.
 -- This step normalizes code/name dependencies only; it keeps the original
 -- numeric race and denial-reason slots and does not normalize other FDs.
 
+\set ON_ERROR_STOP on
 BEGIN;
 
+DROP TABLE IF EXISTS p2_application_denial;
+DROP TABLE IF EXISTS p2_application_co_race;
+DROP TABLE IF EXISTS p2_application_race;
+DROP TABLE IF EXISTS p2_application_denial_reason;
+DROP TABLE IF EXISTS p2_co_applicant_race_selection;
+DROP TABLE IF EXISTS p2_applicant_race_selection;
 DROP TABLE IF EXISTS p2_application;
+DROP TABLE IF EXISTS p2_respondent;
+DROP TABLE IF EXISTS p2_location;
 DROP TABLE IF EXISTS p2_null_only_fields;
+DROP TABLE IF EXISTS p2_edit_status;
 DROP TABLE IF EXISTS p2_denial_reason;
+DROP TABLE IF EXISTS p2_denial_reason_code;
 DROP TABLE IF EXISTS p2_co_applicant_race;
+DROP TABLE IF EXISTS p2_co_applicant_race_code;
 DROP TABLE IF EXISTS p2_applicant_race;
+DROP TABLE IF EXISTS p2_applicant_race_code;
 DROP TABLE IF EXISTS p2_co_applicant_sex;
 DROP TABLE IF EXISTS p2_applicant_sex;
 DROP TABLE IF EXISTS p2_co_applicant_ethnicity;
@@ -78,8 +91,10 @@ CREATE TABLE p2_state (
 );
 
 CREATE TABLE p2_county (
-    county_code INTEGER PRIMARY KEY,
-    county_name TEXT
+    state_code INTEGER REFERENCES p2_state(state_code),
+    county_code INTEGER,
+    county_name TEXT,
+    PRIMARY KEY (state_code, county_code)
 );
 
 CREATE TABLE p2_applicant_ethnicity (
@@ -157,7 +172,7 @@ CREATE TABLE p2_application (
     action_taken INTEGER REFERENCES p2_action_taken(action_taken),
     msamd INTEGER REFERENCES p2_msamd(msamd),
     state_code INTEGER REFERENCES p2_state(state_code),
-    county_code INTEGER REFERENCES p2_county(county_code),
+    county_code INTEGER,
     census_tract_number NUMERIC(12, 2),
     applicant_ethnicity INTEGER
         REFERENCES p2_applicant_ethnicity(applicant_ethnicity),
@@ -190,11 +205,13 @@ CREATE TABLE p2_application (
     hoepa_status INTEGER REFERENCES p2_hoepa_status(hoepa_status),
     lien_status INTEGER REFERENCES p2_lien_status(lien_status),
     population INTEGER,
-    minority_population NUMERIC(12, 2),
+    minority_population NUMERIC,
     hud_median_family_income INTEGER,
-    tract_to_msamd_income NUMERIC(12, 2),
+    tract_to_msamd_income NUMERIC,
     number_of_owner_occupied_units INTEGER,
-    number_of_1_to_4_family_units INTEGER
+    number_of_1_to_4_family_units INTEGER,
+    FOREIGN KEY (state_code, county_code)
+        REFERENCES p2_county(state_code, county_code)
 );
 
 -- Load each code/name mapping from the actual typed source values. If a
@@ -245,10 +262,11 @@ SELECT DISTINCT state_code, state_name, state_abbr
 FROM preliminary
 WHERE state_code IS NOT NULL;
 
-INSERT INTO p2_county (county_code, county_name)
-SELECT DISTINCT county_code, county_name
+INSERT INTO p2_county (state_code, county_code, county_name)
+SELECT DISTINCT state_code, county_code, county_name
 FROM preliminary
-WHERE county_code IS NOT NULL;
+WHERE state_code IS NOT NULL
+  AND county_code IS NOT NULL;
 
 INSERT INTO p2_applicant_ethnicity (
     applicant_ethnicity, applicant_ethnicity_name

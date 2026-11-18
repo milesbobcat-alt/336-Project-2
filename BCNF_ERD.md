@@ -8,7 +8,8 @@ erDiagram
     APPLICATION {
         int sequence_number PK
         int as_of_year
-        string respondent_id FK
+        string respondent_id
+        int agency_code FK
         int loan_type FK
         int property_type FK
         int loan_purpose FK
@@ -16,7 +17,7 @@ erDiagram
         decimal loan_amount_000s
         int preapproval FK
         int action_taken FK
-        int locationID FK
+        int location_id FK
         int applicant_ethnicity FK
         int co_applicant_ethnicity FK
         int applicant_sex FK
@@ -26,12 +27,6 @@ erDiagram
         decimal rate_spread
         int hoepa_status FK
         int lien_status FK
-        int edit_status FK
-        int application_date_indicator
-    }
-    RESPONDENT {
-        string respondent_id PK
-        int agency_code FK
     }
     AGENCY {
         int agency_code PK
@@ -39,8 +34,9 @@ erDiagram
         string agency_abbr
     }
     LOCATION {
-        int locationID PK
+        int location_id PK
         int msamd FK
+        int state_code FK
         int county_code FK
         decimal census_tract_number
         int population
@@ -56,9 +52,9 @@ erDiagram
         string state_abbr
     }
     COUNTY {
+        int state_code PK, FK
         int county_code PK
         string county_name
-        int state_code FK
     }
     MSAMD {
         int msamd PK
@@ -112,12 +108,12 @@ erDiagram
         int co_applicant_race PK
         string co_applicant_race_name
     }
-    APPLICANT_RACE_SELECTION {
+    APPLICATION_RACE {
         int sequence_number PK, FK
         int applicant_race_num PK
         int applicant_race FK
     }
-    CO_APPLICANT_RACE_SELECTION {
+    APPLICATION_CO_RACE {
         int sequence_number PK, FK
         int co_applicant_race_num PK
         int co_applicant_race FK
@@ -130,7 +126,7 @@ erDiagram
         int denial_reason PK
         string denial_reason_name
     }
-    APPLICATION_DENIAL_REASON {
+    APPLICATION_DENIAL {
         int sequence_number PK, FK
         int denial_reason_num PK
         int denial_reason FK
@@ -143,13 +139,14 @@ erDiagram
         int lien_status PK
         string lien_status_name
     }
-    EDIT_STATUS {
-        int edit_status PK
+    NULL_ONLY_FIELDS {
+        int singleton_id PK
+        int edit_status
         string edit_status_name
+        int application_date_indicator
     }
 
-    AGENCY ||--o{ RESPONDENT : has
-    RESPONDENT ||--o{ APPLICATION : files
+    AGENCY ||--o{ APPLICATION : classifies
     LOCATION ||--o{ APPLICATION : locates
     STATE ||--o{ COUNTY : contains
     COUNTY ||--o{ LOCATION : contains
@@ -167,37 +164,41 @@ erDiagram
     PURCHASER_TYPE ||--o{ APPLICATION : classifies
     HOEPA_STATUS ||--o{ APPLICATION : classifies
     LIEN_STATUS ||--o{ APPLICATION : classifies
-    EDIT_STATUS ||--o{ APPLICATION : classifies
-    APPLICATION ||--o{ APPLICANT_RACE_SELECTION : records
-    APPLICANT_RACE_CODE ||--o{ APPLICANT_RACE_SELECTION : describes
-    APPLICATION ||--o{ CO_APPLICANT_RACE_SELECTION : records
-    CO_APPLICANT_RACE_CODE ||--o{ CO_APPLICANT_RACE_SELECTION : describes
-    APPLICATION ||--o{ APPLICATION_DENIAL_REASON : records
-    DENIAL_REASON_CODE ||--o{ APPLICATION_DENIAL_REASON : describes
+    APPLICATION ||--o{ APPLICATION_RACE : records
+    APPLICANT_RACE_CODE ||--o{ APPLICATION_RACE : describes
+    APPLICATION ||--o{ APPLICATION_CO_RACE : records
+    CO_APPLICANT_RACE_CODE ||--o{ APPLICATION_CO_RACE : describes
+    APPLICATION ||--o{ APPLICATION_DENIAL : records
+    DENIAL_REASON_CODE ||--o{ APPLICATION_DENIAL : describes
 ```
 
 ## What changed from the 1NF diagram
 
-- Keep application facts in `APPLICATION`, keyed by `sequence_number`. Move agency
-  ownership to `RESPONDENT`, because `respondent_id -> agency_code`; `AGENCY` then
-  holds the agency code/name dependency.
-- Keep geography in `LOCATION`, keyed by `locationID`. Move state, county, and
+- Keep application facts in `APPLICATION`, keyed by `sequence_number`. Keep
+  `agency_code` there because the source data has multiple agency codes for
+  some `respondent_id` values, so `respondent_id -> agency_code` is not a valid
+  dependency for this CSV. `AGENCY` holds the code/name mapping.
+- Keep geography in `LOCATION`, keyed by `location_id`. Move state, county, and
   MSAMD names to their own code-keyed tables. `LOCATION` references the county
-  and MSAMD; state is determined through county.
+  and MSAMD, and carries `state_code` for the composite county foreign key.
 - For each code/name dependency, keep the code and its name together in its own
   lookup table. Applications store the code as a foreign key, not the name.
 - Replace numbered applicant-race, co-applicant-race, and denial-reason fields
   with selection tables. Their composite primary keys preserve the slot number
   and the given dependencies; each selected code references its code/name table.
-- Do not use a singleton "null fields" table. `edit_status` and
-  `application_date_indicator` remain application attributes, even if the
-  current source data happens to contain only NULL values.
+- Keep `edit_status`, `edit_status_name`, and `application_date_indicator` in
+  the singleton `NULL_ONLY_FIELDS` table; the source values are all NULL.
+- The source CSV has decimal percentage values with up to 17 fractional digits.
+  The import and location tables use unconstrained `NUMERIC` to avoid rounding
+  those source values before reconstruction.
+- Two non-NULL MSAMD codes have blank names in this CSV. Keep
+  `msamd_name` nullable so those source NULLs survive import and export.
 
 ## BCNF and losslessness notes
 
-Each listed dependency is represented by a relation in which its determinant is
-a primary key (or is implied by a key through the foreign-key path). Thus no
-non-key determinant remains within a relation. I treated the application,
+Each valid listed dependency is represented by a relation in which its
+determinant is a primary key (or is implied by a key through the foreign-key
+path). Thus no non-key determinant remains within a relation. I treated the application,
 geography, code/name, and numbered-selection dependencies as their respective
 source relations, rather than pretending all independent one-to-many facts
 form one flat relation. The FD-based splits within each source relation are
@@ -207,13 +208,6 @@ CSV layout is needed. Joining multiple independent selection tables directly
 into one flat result would produce a cross product and is not the intended
 reconstruction.
 
-An automated FD-closure, BCNF, and chase check parsed all 27 supplied
-dependencies: all were preserved, no projected BCNF violations were found,
-and the application, geography, applicant-race, co-applicant-race, and denial
-reason source-relation decompositions each passed the lossless chase.
-
-The supplied county dependency says `county_code -> county_name, state_code`.
-Accordingly, `county_code` is the primary key here. This is appropriate for the
-NJ-only source dataset. For a multi-state dataset, county codes are not globally
-unique: revise that dependency to `(state_code, county_code) -> county_name`,
-and use that pair as the county key and location foreign key.
+County codes are state-scoped, so the dependency is
+`(state_code, county_code) -> county_name`, and the county primary key and
+location foreign key use that same pair.

@@ -1,10 +1,12 @@
 -- PART 4: reconstruct original 78-column HMDA CSV from normalized tables ONLY.
--- Prerequisites: Step 2, county compatibility patch, Step 3; do not use preliminary/raw.
+-- Prerequisites: preliminary_upload.sql, normalize_hmda_project2.sql,
+-- part3.sql, and part4_checks.sql; do not use preliminary/raw for the export.
 -- Run inside psql: \i part4_export.sql
 -- Output: hmda_reconstructed.csv in the psql client's current working directory.
 
+\set ON_ERROR_STOP on
 
-CREATE TEMP VIEW hmda_reconstructed_export AS
+CREATE OR REPLACE TEMP VIEW hmda_reconstructed_export AS
 SELECT
     trim_scale(a.as_of_year)::text AS as_of_year,
     a.respondent_id AS respondent_id,
@@ -146,4 +148,21 @@ LEFT JOIN p2_denial_reason drc1 ON drc1.denial_reason = dr.denial_reason_1
 LEFT JOIN p2_denial_reason drc2 ON drc2.denial_reason = dr.denial_reason_2
 LEFT JOIN p2_denial_reason drc3 ON drc3.denial_reason = dr.denial_reason_3
 ORDER BY a.sequence_number;
+
+DO $$
+DECLARE
+    application_count BIGINT;
+    export_count BIGINT;
+BEGIN
+    SELECT COUNT(*) INTO application_count FROM p2_application;
+    SELECT COUNT(*) INTO export_count FROM hmda_reconstructed_export;
+
+    IF export_count <> application_count THEN
+        RAISE EXCEPTION
+            'Reconstruction row count mismatch: % applications, % export rows',
+            application_count, export_count;
+    END IF;
+END;
+$$;
+
 \copy hmda_reconstructed_export TO 'hmda_reconstructed.csv' WITH (FORMAT CSV, HEADER TRUE, NULL '');

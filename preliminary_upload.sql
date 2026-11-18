@@ -3,6 +3,7 @@
 -- 2) cast values into the correct types in the typed Preliminary table
 -- 3) generate a sequential primary key in sequence_number
 
+\set ON_ERROR_STOP on
 DROP TABLE IF EXISTS preliminary_raw;
 DROP TABLE IF EXISTS preliminary;
 
@@ -87,8 +88,8 @@ CREATE TABLE preliminary_raw (
     application_date_indicator TEXT
 );
 
--- Put the CSV in the same directory where you run psql and then run this script with \i
-\copy preliminary_raw FROM 'hmda_2017_nj_all-records_labels.csv' WITH (FORMAT csv, HEADER true, DELIMITER ',', NULL '', QUOTE '"');
+-- Run psql from the Project 2 directory; the source CSV is in the sibling Project 1 directory.
+\copy preliminary_raw FROM '../Project 1/hmda_2017_nj_all-records_labels.csv' WITH (FORMAT csv, HEADER true, DELIMITER ',', NULL '', QUOTE '"');
 
 CREATE TABLE preliminary (
     as_of_year INTEGER,
@@ -163,9 +164,9 @@ CREATE TABLE preliminary (
     edit_status INTEGER,
     sequence_number INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     population INTEGER,
-    minority_population NUMERIC(12,2),
+    minority_population NUMERIC,
     hud_median_family_income INTEGER,
-    tract_to_msamd_income NUMERIC(12,2),
+    tract_to_msamd_income NUMERIC,
     number_of_owner_occupied_units INTEGER,
     number_of_1_to_4_family_units INTEGER,
     application_date_indicator INTEGER
@@ -322,9 +323,9 @@ SELECT
     edit_status_name,
     CAST(NULLIF(edit_status, '') AS INTEGER),
     CAST(NULLIF(population, '') AS INTEGER),
-    CAST(NULLIF(minority_population, '') AS NUMERIC(12,2)),
+    CAST(NULLIF(minority_population, '') AS NUMERIC),
     CAST(NULLIF(hud_median_family_income, '') AS INTEGER),
-    CAST(NULLIF(tract_to_msamd_income, '') AS NUMERIC(12,2)),
+    CAST(NULLIF(tract_to_msamd_income, '') AS NUMERIC),
     CAST(NULLIF(number_of_owner_occupied_units, '') AS INTEGER),
     CAST(NULLIF(number_of_1_to_4_family_units, '') AS INTEGER),
     CAST(NULLIF(application_date_indicator, '') AS INTEGER)

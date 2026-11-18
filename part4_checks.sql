@@ -32,6 +32,8 @@ ALTER TABLE p2_loan_purpose ALTER COLUMN loan_purpose_name SET NOT NULL;
 ALTER TABLE p2_owner_occupancy ALTER COLUMN owner_occupancy_name SET NOT NULL;
 ALTER TABLE p2_preapproval ALTER COLUMN preapproval_name SET NOT NULL;
 ALTER TABLE p2_action_taken ALTER COLUMN action_taken_name SET NOT NULL;
+-- p2_msamd.msamd_name stays nullable: codes 35620 and 37980 have blank names
+-- in the source CSV.
 ALTER TABLE p2_state ALTER COLUMN state_name SET NOT NULL;
 ALTER TABLE p2_state ALTER COLUMN state_abbr SET NOT NULL;
 ALTER TABLE p2_applicant_ethnicity ALTER COLUMN applicant_ethnicity_name SET NOT NULL;
@@ -48,6 +50,8 @@ ALTER TABLE p2_lien_status ALTER COLUMN lien_status_name SET NOT NULL;
 -- Existing PRIMARY KEY / FOREIGN KEY definitions in Steps 2-3 reject unknown
 -- codes and duplicate keys; do not disable those constraints.
 -- Explicit singleton protection for the fields that are all NULL in the CSV:
+ALTER TABLE p2_null_only_fields
+    DROP CONSTRAINT IF EXISTS p2_null_fields_all_null;
 ALTER TABLE p2_null_only_fields ADD CONSTRAINT p2_null_fields_all_null
     CHECK (edit_status IS NULL AND edit_status_name IS NULL
            AND application_date_indicator IS NULL);
@@ -67,9 +71,17 @@ DO $$
 DECLARE msg text;
 BEGIN
   BEGIN
-    INSERT INTO p2_application
-    SELECT (SELECT MAX(sequence_number)+1 FROM p2_application) AS sequence_number,
-           as_of_year, respondent_id, agency_code, loan_type, 4 AS property_type,
+    INSERT INTO p2_application (
+        sequence_number, as_of_year, respondent_id, agency_code,
+        loan_type, property_type,
+        loan_purpose, owner_occupancy, loan_amount_000s, preapproval,
+        action_taken, applicant_ethnicity, co_applicant_ethnicity,
+        applicant_sex, co_applicant_sex, applicant_income_000s,
+        purchaser_type, rate_spread, hoepa_status, lien_status, location_id
+    )
+    SELECT (SELECT MAX(sequence_number)+1 FROM p2_application),
+           as_of_year, respondent_id, agency_code, loan_type,
+           4 AS property_type,
            loan_purpose, owner_occupancy, loan_amount_000s, preapproval,
            action_taken, applicant_ethnicity, co_applicant_ethnicity,
            applicant_sex, co_applicant_sex, applicant_income_000s,
@@ -87,7 +99,21 @@ DO $$
 DECLARE msg text;
 BEGIN
   BEGIN
-    INSERT INTO p2_application SELECT * FROM p2_application
+    INSERT INTO p2_application (
+        sequence_number, as_of_year, respondent_id, agency_code,
+        loan_type, property_type,
+        loan_purpose, owner_occupancy, loan_amount_000s, preapproval,
+        action_taken, applicant_ethnicity, co_applicant_ethnicity,
+        applicant_sex, co_applicant_sex, applicant_income_000s,
+        purchaser_type, rate_spread, hoepa_status, lien_status, location_id
+    )
+    SELECT sequence_number, as_of_year, respondent_id, agency_code,
+           loan_type, property_type,
+           loan_purpose, owner_occupancy, loan_amount_000s, preapproval,
+           action_taken, applicant_ethnicity, co_applicant_ethnicity,
+           applicant_sex, co_applicant_sex, applicant_income_000s,
+           purchaser_type, rate_spread, hoepa_status, lien_status, location_id
+    FROM p2_application
     ORDER BY sequence_number LIMIT 1;
     RAISE EXCEPTION 'TEST 2 FAIL: duplicate application ID was accepted';
   EXCEPTION WHEN unique_violation THEN
@@ -101,8 +127,15 @@ DO $$
 DECLARE msg text;
 BEGIN
   BEGIN
-    INSERT INTO p2_application
-    SELECT (SELECT MAX(sequence_number)+1 FROM p2_application) AS sequence_number,
+    INSERT INTO p2_application (
+        sequence_number, as_of_year, respondent_id, agency_code,
+        loan_type, property_type,
+        loan_purpose, owner_occupancy, loan_amount_000s, preapproval,
+        action_taken, applicant_ethnicity, co_applicant_ethnicity,
+        applicant_sex, co_applicant_sex, applicant_income_000s,
+        purchaser_type, rate_spread, hoepa_status, lien_status, location_id
+    )
+    SELECT (SELECT MAX(sequence_number)+1 FROM p2_application),
            as_of_year, NULL::text AS respondent_id, agency_code, loan_type,
            property_type, loan_purpose, owner_occupancy, loan_amount_000s,
            preapproval, action_taken, applicant_ethnicity,
